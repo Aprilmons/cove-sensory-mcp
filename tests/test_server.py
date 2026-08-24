@@ -10,6 +10,8 @@ import sys
 
 import pytest
 from mcp import Client
+from mcp.server.transport_security import TransportSecuritySettings
+from starlette.testclient import TestClient
 
 from cove_sensory_mcp.config.secrets import MemorySecretStore
 from cove_sensory_mcp.config.store import ConfigStore
@@ -34,6 +36,9 @@ async def test_server_lists_exact_public_tools(services: AppServices) -> None:
     names = sorted(tool.name for tool in await server.list_tools())
 
     assert server.name == "cove-sensory-mcp"
+    assert server.version
+    assert server.instructions is not None
+    assert "media_file" in server.instructions
     assert names == [
         "sense_audio",
         "sense_image",
@@ -43,6 +48,47 @@ async def test_server_lists_exact_public_tools(services: AppServices) -> None:
         "sensory_setup_guide",
         "sensory_status",
     ]
+
+
+def test_private_streamable_http_health_and_initialize(services: AppServices) -> None:
+    server = create_server(services)
+    app = server.streamable_http_app(
+        streamable_http_path="/mcp",
+        json_response=True,
+        stateless_http=True,
+        transport_security=TransportSecuritySettings(
+            enable_dns_rebinding_protection=False
+        ),
+    )
+    initialize = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-11-25",
+            "capabilities": {},
+            "clientInfo": {"name": "http-smoke-test", "version": "1.0"},
+        },
+    }
+
+    with TestClient(app) as client:
+        health = client.get("/healthz")
+        initialized = client.post(
+            "/mcp",
+            headers={
+                "accept": "application/json",
+                "content-type": "application/json",
+            },
+            json=initialize,
+        )
+
+    assert health.status_code == 200
+    assert health.json() == {"status": "ok"}
+    assert initialized.status_code == 200
+    server_info = initialized.json()["result"]["serverInfo"]
+    assert server_info["name"] == "cove-sensory-mcp"
+    assert server_info["title"] == "Cove Sensory MCP"
+    assert server_info["version"] == server.version
 
 
 @pytest.mark.asyncio

@@ -17,6 +17,7 @@ from pydantic import TypeAdapter
 
 from . import __version__
 from .client_config import CLIENTS, render_client_config
+from .cloud import build_cloud_services
 from .config.paths import AppPaths
 from .config.schema import AdapterOptions, AppConfig, ProviderConfig
 from .config.secrets import KeyringSecretStore
@@ -24,7 +25,7 @@ from .config.store import ConfigStore
 from .errors import ErrorCode, SensoryError
 from .models import Modality, ProviderId, ProviderRef, RouteConfig
 from .providers.openai_compatible import media_part_mode_capabilities
-from .server import run_stdio
+from .server import run_http, run_stdio
 from .services import AppServices
 from .tools.setup import sensory_self_test, verify_provider_capabilities
 
@@ -62,6 +63,17 @@ class _CustomWireModeMismatch(ValueError):
 def _optional_environment_path(name: str) -> Path | None:
     value = os.environ.get(name)
     return Path(value) if value else None
+
+
+def _environment_port() -> int:
+    raw = os.environ.get("PORT", "8000")
+    try:
+        port = int(raw)
+    except ValueError:
+        raise ValueError("PORT must be an integer") from None
+    if not 1 <= port <= 65_535:
+        raise ValueError("PORT must be between 1 and 65535")
+    return port
 
 
 def _build_services() -> AppServices:
@@ -638,6 +650,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--version", action="store_true")
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("serve", help="Run the local MCP server over stdio.")
+    http_parser = subparsers.add_parser(
+        "serve-http", help="Run private Streamable HTTP for a Secure MCP Tunnel."
+    )
+    http_parser.add_argument("--host", default=os.environ.get("HOST", "0.0.0.0"))
+    http_parser.add_argument("--port", type=int, default=_environment_port())
     configure_parser = subparsers.add_parser(
         "configure", help="Configure a provider or media paths locally."
     )
@@ -671,6 +688,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "serve":
         run_stdio(_build_services())
+        return 0
+    if args.command == "serve-http":
+        if not 1 <= args.port <= 65_535:
+            parser.error("--port must be between 1 and 65535")
+        run_http(build_cloud_services(), host=args.host, port=args.port)
         return 0
     if args.command == "configure":
         if args.target == "paths":
