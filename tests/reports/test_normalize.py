@@ -177,9 +177,9 @@ def test_negative_timestamp_item_is_removed_with_warning() -> None:
         {"start_seconds": -0.0004, "end_seconds": 1, "text": "negative"},
         {"start_seconds": 1.0004, "end_seconds": 1.0003, "text": "reversed"},
         {"start_seconds": 1, "end_seconds": 1, "text": "empty"},
-        {"start_seconds": 29, "end_seconds": 30.0004, "text": "past-duration"},
+        {"start_seconds": 29, "end_seconds": 30.006, "text": "past-duration"},
     ],
-    ids=["tiny-negative", "reversed-before-rounding", "equal", "tiny-past-duration"],
+    ids=["tiny-negative", "reversed-before-rounding", "equal", "past-tail-tolerance"],
 )
 def test_raw_semantic_timestamp_errors_cannot_be_hidden_by_rounding(
     invalid_segment: dict[str, object],

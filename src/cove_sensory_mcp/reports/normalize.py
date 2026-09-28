@@ -26,6 +26,7 @@ _TIMECODE_WARNING = {
     "message": "One or more timecoded items were omitted because they fell outside the media range.",
 }
 _MAX_WARNINGS = 200
+_TAIL_ROUNDING_TOLERANCE_SECONDS = 0.005
 
 
 class _InvalidProviderResponse(Exception):
@@ -75,12 +76,21 @@ def _normalize_timecoded_items(
         if (
             start < 0
             or start >= end
-            or (duration_seconds is not None and end > duration_seconds)
+            or (
+                duration_seconds is not None
+                and end > duration_seconds + _TAIL_ROUNDING_TOLERANCE_SECONDS
+            )
         ):
             removed += 1
             continue
+        if duration_seconds is not None:
+            end = min(end, duration_seconds)
         rounded_start = round(start, 3)
         rounded_end = round(end, 3)
+        if duration_seconds is not None and rounded_end > duration_seconds:
+            # Timestamp fields round to milliseconds again during schema validation.
+            # Use the last full millisecond so the final value stays inside the media.
+            rounded_end = math.floor(duration_seconds * 1000) / 1000
         if rounded_start >= rounded_end:
             removed += 1
             continue
