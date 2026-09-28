@@ -136,7 +136,9 @@ class _PrivacySafeFastMCP(FastMCP[None]):
             return _invalid_arguments_result()
 
 
-def create_server(services: AppServices) -> FastMCP[None]:
+def create_server(
+    services: AppServices, *, cloud_deployment: bool = False
+) -> FastMCP[None]:
     """Bind the foundation setup handlers to the official Python MCP server."""
     server: FastMCP[None] = _PrivacySafeFastMCP(
         "cove-sensory-mcp",
@@ -166,7 +168,7 @@ def create_server(services: AppServices) -> FastMCP[None]:
         annotations=_SAFE_ANNOTATIONS,
     )
     async def setup_guide_tool() -> dict[str, object]:
-        return await sensory_setup_guide(services)
+        return await sensory_setup_guide(services, cloud_deployment=cloud_deployment)
 
     @server.tool(
         name="sensory_self_test",
@@ -337,7 +339,7 @@ def run_http(services: AppServices, *, host: str, port: int) -> None:
     logging.getLogger(__name__).info(
         "Starting private cove-sensory-mcp HTTP server on %s:%s", host, port
     )
-    create_server(services).run(
+    create_server(services, cloud_deployment=True).run(
         transport="streamable-http",
         host=host,
         port=port,
