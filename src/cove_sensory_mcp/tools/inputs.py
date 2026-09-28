@@ -2,9 +2,52 @@
 
 from __future__ import annotations
 
+from urllib.parse import urlsplit
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from cove_sensory_mcp.models import DetailLevel, ProviderId
+
+
+class ChatGPTFile(BaseModel):
+    """One temporary file handoff supplied by ChatGPT to an MCP tool."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+    download_url: str = Field(min_length=1, max_length=16_384)
+    file_id: str = Field(min_length=1, max_length=512)
+    mime_type: str | None = Field(default=None, min_length=1, max_length=255)
+    file_name: str | None = Field(default=None, min_length=1, max_length=1_024)
+
+    @field_validator("download_url")
+    @classmethod
+    def validate_download_url(cls, value: str) -> str:
+        """Accept only credential-free HTTPS URLs suitable for guarded download."""
+        try:
+            parsed = urlsplit(value)
+            _ = parsed.port
+        except ValueError:
+            raise ValueError("download_url is invalid") from None
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname is None
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.fragment
+            or any(ord(character) < 32 or ord(character) == 127 for character in value)
+        ):
+            raise ValueError("download_url is invalid")
+        return value
+
+    @field_validator("file_id", "mime_type", "file_name")
+    @classmethod
+    def reject_control_characters(cls, value: str | None) -> str | None:
+        if value is not None and (
+            not value.strip()
+            or any(ord(character) < 32 or ord(character) == 127 for character in value)
+        ):
+            raise ValueError("file metadata is invalid")
+        return value
 
 
 class _Input(BaseModel):

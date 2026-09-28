@@ -36,7 +36,9 @@ def test_network_policy_blocks_unsafe_targets(url: str) -> None:
 
 def test_dns_resolution_to_private_address_is_blocked() -> None:
     with pytest.raises(SensoryError) as caught:
-        NetworkPolicy(lambda _: ["10.0.0.5"]).validate_url("https://public.example/a.jpg")
+        NetworkPolicy(lambda _: ["10.0.0.5"]).validate_url(
+            "https://public.example/a.jpg"
+        )
     assert caught.value.code is ErrorCode.DOWNLOAD_BLOCKED
 
 
@@ -72,7 +74,9 @@ async def test_download_rejects_size_and_media_mismatch(
     downloader = MediaDownloader(
         NetworkPolicy(lambda _: ["93.184.216.34"]),
         client=httpx.AsyncClient(
-            transport=httpx.MockTransport(lambda _: httpx.Response(200, headers=headers, content=body))
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(200, headers=headers, content=body)
+            )
         ),
     )
     with pytest.raises(SensoryError):
@@ -102,3 +106,38 @@ async def test_valid_public_image_download_is_scoped(tmp_path: Path) -> None:
     assert result.path.parent == tmp_path.resolve()
     assert result.mime_type == "image/jpeg"
     assert result.cleanup_required is True
+
+
+@pytest.mark.parametrize(
+    ("content_type", "body", "expected_mime"),
+    [
+        ("audio/mp4", b"\x00\x00\x00\x18ftypM4A " + b"x" * 20, "audio/mp4"),
+        ("audio/x-m4a", b"\x00\x00\x00\x18ftypM4A " + b"x" * 20, "audio/mp4"),
+        ("audio/flac", b"fLaC" + b"x" * 28, "audio/flac"),
+        ("audio/ogg", b"OggS" + b"x" * 28, "audio/ogg"),
+        ("audio/webm", b"\x1a\x45\xdf\xa3" + b"x" * 28, "audio/webm"),
+        ("video/webm", b"\x1a\x45\xdf\xa3" + b"x" * 28, "video/webm"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_download_accepts_common_chat_attachment_containers(
+    tmp_path: Path, content_type: str, body: bytes, expected_mime: str
+) -> None:
+    downloader = MediaDownloader(
+        NetworkPolicy(lambda _: ["93.184.216.34"]),
+        client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(
+                    200,
+                    headers={"content-type": content_type},
+                    content=body,
+                )
+            )
+        ),
+    )
+
+    result = await downloader.download(
+        "https://public.example/attachment", tmp_path, NetworkLimits(1024, 2, 1)
+    )
+
+    assert result.mime_type == expected_mime

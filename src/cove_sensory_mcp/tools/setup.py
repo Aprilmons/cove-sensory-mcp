@@ -119,9 +119,43 @@ async def sensory_status(services: AppServices) -> dict[str, object]:
     return _status_from_config(config).model_dump(mode="json")
 
 
-async def sensory_setup_guide(services: AppServices) -> dict[str, object]:
-    """Return local-only setup options while keeping API keys outside tool inputs."""
+async def sensory_setup_guide(
+    services: AppServices, *, cloud_deployment: bool = False
+) -> dict[str, object]:
+    """Describe setup for the active entry point without reading credentials."""
     del services
+    if cloud_deployment:
+        return {
+            "deployment": "cloud",
+            "configuration": {
+                "service": "Cove service",
+                "method": "environment variables",
+                "provider": "Gemini",
+                "variables": ["GEMINI_API_KEY", "COVE_GEMINI_MODEL", "COVE_DATA_DIR"],
+                "notice": (
+                    "The HTTP entry point creates provider configuration from these "
+                    "environment variables at startup. No desktop configure wizard is needed."
+                ),
+            },
+            "next_step": {
+                "tool": "sensory_self_test",
+                "modalities": [modality.value for modality in Modality],
+                "notice": (
+                    "Run with the user's approval. This sends tiny test media to the "
+                    "configured Provider, may consume Provider quota, and records "
+                    "verified capability state."
+                ),
+            },
+            "persistence": (
+                "Attach persistent storage at COVE_DATA_DIR (default /data) to retain "
+                "non-secret configuration and verification state across redeployments."
+            ),
+            "security_notice": (
+                "Enter the API Key only in the Cove service's secret environment "
+                "variable GEMINI_API_KEY. Never send API Keys in chat messages or "
+                "tool arguments."
+            ),
+        }
     return {
         "command": _SETUP_COMMAND,
         "provider_options": deepcopy(_PROVIDER_OPTIONS),

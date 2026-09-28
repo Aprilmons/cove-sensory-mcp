@@ -5,6 +5,10 @@ that lets an Agent ask configured multimodal providers to inspect an explicitly 
 image, video, audio file, or music file. It is a sensory layer only: it does not provide
 chat, memory, personality, playback, continuous monitoring, or a calling policy.
 
+For a private ChatGPT deployment on Railway, including direct attachment handoff
+and OpenAI Secure MCP Tunnel, see
+[Private Railway deployment for ChatGPT](docs/railway-private-tunnel.md).
+
 ## Install and connect from source
 
 This repository is distributed as source code. It does not require a packaged desktop
